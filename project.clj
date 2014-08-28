@@ -7,15 +7,17 @@
   :source-paths ["src/clj" "src/cljs"]
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.338.0-5c5012-alpha"]
-                 [com.facebook/react "0.11.1"]
-                 [org.clojure/clojurescript "0.0-2322"]
-                 [ring "1.2.2"]
+                 ; server scaffolding
                  [compojure "1.1.8"]
+                 [ring "1.2.2"]
+                 [figwheel "0.1.4-SNAPSHOT"] 
+                 ; cljs
+                 [org.clojure/clojurescript "0.0-2322"]
                  [enlive "1.1.5"]
                  [cljs-ajax "0.2.6"]
+                 [com.facebook/react "0.11.1"]
                  [om "0.7.1"]
-                 [figwheel "0.1.4-SNAPSHOT"]]
-  :plugins [[lein-cljsbuild "1.0.3"]]
+                 ]
 
   :cljsbuild {:builds
               [
@@ -37,11 +39,11 @@
                            :externs ["react/externs/react.js"]
                            }}
                ]}
-
-  :profiles {:dev
-             {:repl-options {:init-ns tumblrsearch.server}
-              :plugins [[com.cemerick/austin "0.1.5-SNAPSHOT"]
-                        [lein-cljsbuild "1.0.3"]
-                        [lein-figwheel "0.1.2-SNAPSHOT"]]
-              :figwheel {:http-server-root "public" ;; resources/public
-                         :port 3449 }}})
+  :figwheel {:http-server-root "public" :port 3449 }
+  :profiles {:dev {:plugins [[lein-cljsbuild "1.0.3"]
+                             [lein-figwheel "0.1.4-SNAPSHOT"]
+                             [com.cemerick/austin "0.1.5"]]
+                   :repl-options {:init-ns tumblrsearch.server}
+                   }
+             }
+)

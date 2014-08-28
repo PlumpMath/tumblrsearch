@@ -1,11 +1,12 @@
 (ns tumblrsearch.core
-  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require-macros [cljs.core.async.macros :refer [go]
+                    ])
   (:require [clojure.browser.repl]
             [cljs.core.async :as async :refer  [put! chan <!]]
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
-            [figwheel.client :as fw :include-macros true]
             [clojure.string :as s :refer [replace]]
+            [figwheel.client :as fw :include-macros true]
             )
   (:import [goog.net Jsonp]
            [goog Uri]
@@ -20,6 +21,7 @@
 
 (def initial-state 
   {:current-state :search
+   :search-options {:photo true :audio true}
    :current-search ""
    :error ""
    :current-items []
@@ -41,6 +43,7 @@
        "&api_key=pekKZHs4hKvshK1NRyXlawVhO203uYg0MMfGj5Tq8ts6M1Wq9Z"
        ))
 
+
 (defn async-search [data ajax-chan]
   (let [search-term (:current-search data)
         before (:before data)
@@ -52,8 +55,7 @@
               ; 200 response - ok
               (put! ajax-chan {:error false
                                :search-term search-term
-                               :items (filter (fn [item] (= (:type item) "photo"))
-                                              (js->clj (.. % -response) :keywordize-keys true))})
+                               :items (js->clj (.. % -response) :keywordize-keys true)})
               ; otherwise error
               (put! ajax-chan {:error true})))))
 
@@ -76,7 +78,7 @@
 
 (defn key-event->keycode [e] (.-keyCode e))
 (def legal-key #{ENTER ESC})
-  
+
 (defn handle-change [e owner {:keys [text]}]
   (om/set-state! owner :text (.. e -target -value)))
 
@@ -89,6 +91,32 @@
         ))))
 
 ; render ---
+
+(defn render-select [data owner]
+  (dom/div nil
+           (dom/input #js {:type "checkbox" 
+                           :checked (-> data :search-options :photo) 
+                           :onClick (fn [e]
+                                      (.preventDefault e)
+                                      (om/transact! 
+                                        data
+                                        #(update-in % [:search-options :photo] not)))}
+                      (str 
+                        "Photo ("
+                        (count (filter #(= (:type %) "photo") (:current-items data)))
+                        " items)"))
+           (dom/input #js {:type "checkbox" 
+                           :checked (-> data :search-options :audio) 
+                           :onClick (fn [e]
+                                      (.preventDefault e)
+                                      (om/transact! 
+                                        data
+                                        #(update-in % [:search-options :audio] not)))}
+                      (str 
+                        "Audio ("
+                        (count (filter #(= (:type %) "audio") (:current-items data)))
+                        " items)")
+                      )))
 
 (defn render-search [data owner]
   (reify
@@ -119,20 +147,49 @@
                                  (om/set-state! owner :text "")
                                  (om/transact! data reset-state)
                                  )}
-                 "Clear")))
+                 "Clear")
+               (render-select data owner)
+               ))
     ))
 
-;; Photo -----
+;; Items -----
 
-(defn photo-view [item owner]
-  (reify
-    om/IRender
-    (render [_]
-      (dom/p nil
-             (dom/h2 nil (s/replace (:slug item)  #"-"  " "))
-             (dom/a #js {:href (:post_url item) :target "_blank"}
-               (dom/img #js {:src (-> item :photos first :alt_sizes second :url)}))
-             ))))
+
+(defn items-view [data owner]
+  (apply dom/div nil 
+         (om/build-all item-view 
+                       (filter
+                         #(or (= (:type %) "photo") (= (:type %) "audio"))
+                         (:current-items data))
+                       {:state {:visible (:search-options data)}}
+                       )))
+
+(defn item-view [item owner]
+  (if
+    (= (:type item) "photo")
+    (reify
+      om/IRender
+      (render [_]
+        (dom/div #js {:data-type (:type item)
+                      :className (if (-> owner om/get-state :visible :photo)
+                                   "shown"
+                                   "hidden")}
+                 (dom/h2 nil (s/replace (:slug item)  #"-"  " "))
+                 (dom/a #js {:href (:post_url item) :target "_blank"}
+                        (dom/img #js {:src (-> item :photos first :alt_sizes second :url)})))))
+    (reify
+      om/IRender
+      (render [_]
+        (dom/div #js {:data-type true
+                      :className (if (-> owner om/get-state :visible :audio) 
+                                   "shown"
+                                   "hidden")}
+                 (dom/h2 nil (s/replace (:slug item)  #"-"  " "))
+                 (dom/div 
+                   #js {:dangerouslySetInnerHTML #js {:__html (:player item)}}
+                   nil)))) 
+    ))
+
 
 ;; Loading ------------------------------------------------
 
@@ -148,7 +205,7 @@
                                (om/transact! data reset-state))}
                "Reset")
              ; photo list
-             (apply dom/div nil (om/build-all photo-view (:current-items data))) 
+             (items-view data owner)
              ; loading
              (dom/h2 nil "loading")
              (dom/button 
@@ -167,13 +224,15 @@
              (dom/h1 nil (str "Current search: " 
                               (:current-search data)))
 
+             (render-select data owner)
+
              (dom/button
                #js {:onClick (fn [e]
                                (.preventDefault e)
                                (om/transact! data reset-state))}
                "Reset")
-             ; photo list
-             (apply dom/div nil (om/build-all photo-view (:current-items data))) 
+             ; item list
+             (items-view data owner)
              )))
 
 ;; error ------------------------------------------------
@@ -272,3 +331,8 @@
                    )))))
   (atom initial-state)
   {:target (. js/document (getElementById "app"))})
+
+
+(fw/watch-and-reload
+  :websocket-url "ws://localhost:3449/figwheel-ws"
+  :jsload-callback (fn [] (print "reloaded")))
