@@ -32,8 +32,8 @@
                {:id "release"
                 :source-paths ["src/cljs"]
                 :compiler {:output-to "resources/public/app-min.js"
-                           :optimizations :advanced
-                           :pretty-print false
+                           :optimizations :simple
+                           :pretty-print true
                            :output-wrapper false
                            :preamble ["react/react.min.js"]
                            :externs ["react/externs/react.js"]
