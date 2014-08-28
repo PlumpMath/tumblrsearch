@@ -32,18 +32,17 @@
                {:id "release"
                 :source-paths ["src/cljs"]
                 :compiler {:output-to "resources/public/app-min.js"
-                           :optimizations :simple
+                           :optimizations :advanced
                            :pretty-print true
                            :output-wrapper false
                            :preamble ["react/react.min.js"]
                            :externs ["react/externs/react.js"]
                            }}
-               ]}
+               ]
+              }
   :figwheel {:http-server-root "public" :port 3449 }
+
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.3"]
                              [lein-figwheel "0.1.4-SNAPSHOT"]
                              [com.cemerick/austin "0.1.5"]]
-                   :repl-options {:init-ns tumblrsearch.server}
-                   }
-             }
-)
+                   :repl-options {:init-ns tumblrsearch.server}}})

@@ -1,7 +1,7 @@
 (ns tumblrsearch.core
   (:require-macros [cljs.core.async.macros :refer [go]
                     ])
-  (:require [clojure.browser.repl]
+  (:require ;[clojure.browser.repl]
             [cljs.core.async :as async :refer  [put! chan <!]]
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
@@ -13,6 +13,8 @@
            ))
 
 (enable-console-print!)
+
+
 
 ;; state ------------------------------------------
 
@@ -136,7 +138,7 @@
 
 (defn items-view [data owner]
   (let [col-n (quot (:window-width data) IMGSIZE)
-        left-offset (/ (mod (.. js/window -innerWidth) IMGSIZE) 2)]
+        left-offset (int (/ (mod (.. js/window -innerWidth) IMGSIZE) 2))]
     (apply dom/div #js {:className "images"}
            (om/build-all 
              item-view 
@@ -155,7 +157,7 @@
                             (let [offset-n    (mod idx col-n)
                                   offset-x    (+ left-offset (* IMGSIZE offset-n))
                                   offset-y    (offsets offset-n)
-                                  new-height  (.round js/Math (* (:height photo) (/ IMGSIZE (:width photo))))
+                                  new-height  (int (* (:height photo) (/ IMGSIZE (:width photo))))
                                   new-offsets (update-in offsets [offset-n] #(+ % new-height))
                                   new-item {:index idx
                                             :title title
@@ -308,4 +310,3 @@
                    )))))
   (atom initial-state)
   {:target (. js/document (getElementById "app"))})
-
