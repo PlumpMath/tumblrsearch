@@ -17,22 +17,24 @@
 (enable-console-print!)
 
 
+
 ;; state ------------------------------------------
+
+(def IMGSIZE 400)
 
 (def initial-state 
   {:current-state :search
-   :search-options {:photo true :audio true}
    :current-search ""
    :error ""
    :current-items []
    :before 0
+   :window-width (.. js/window -innerWidth) 
    })
 
 (defn reset-state [state]
   (merge state initial-state))
 
 ;; Search ------------------------------------------------
-
 
 ; ajax ---
 
@@ -92,32 +94,6 @@
 
 ; render ---
 
-(defn render-select [data owner]
-  (dom/div nil
-           (dom/input #js {:type "checkbox" 
-                           :checked (-> data :search-options :photo) 
-                           :onClick (fn [e]
-                                      (.preventDefault e)
-                                      (om/transact! 
-                                        data
-                                        #(update-in % [:search-options :photo] not)))}
-                      (str 
-                        "Photo ("
-                        (count (filter #(= (:type %) "photo") (:current-items data)))
-                        " items)"))
-           (dom/input #js {:type "checkbox" 
-                           :checked (-> data :search-options :audio) 
-                           :onClick (fn [e]
-                                      (.preventDefault e)
-                                      (om/transact! 
-                                        data
-                                        #(update-in % [:search-options :audio] not)))}
-                      (str 
-                        "Audio ("
-                        (count (filter #(= (:type %) "audio") (:current-items data)))
-                        " items)")
-                      )))
-
 (defn render-search [data owner]
   (reify
     om/IInitState
@@ -148,7 +124,6 @@
                                  (om/transact! data reset-state)
                                  )}
                  "Clear")
-               (render-select data owner)
                ))
     ))
 
@@ -156,39 +131,52 @@
 
 
 (defn items-view [data owner]
-  (apply dom/div nil 
-         (om/build-all item-view 
-                       (filter
-                         #(or (= (:type %) "photo") (= (:type %) "audio"))
-                         (:current-items data))
-                       {:state {:visible (:search-options data)}}
-                       )))
+  (let [col-n (quot (:window-width data) IMGSIZE)
+        left-offset (/ (mod (.. js/window -innerWidth) IMGSIZE) 2)]
+    (apply dom/div #js {:className "images"}
+           (om/build-all 
+             item-view 
+             (->> (:current-items data)
+                  (filter #(= (:type %) "photo"))
+                  ((fn [items]
+                    (loop [is items coll [] idx 0 offsets (vec (repeat col-n 0))]
+                      (if (empty? is) coll
+                        (let [item  (first is)
+                              title (s/replace (:slug item)  #"-"  " ") 
+                              photo (-> item :photos first :alt_sizes second)]
+                          (if (or (nil? (:height photo)) (nil? (:width photo)))
+                            ; nil size found
+                            (recur (rest is) coll idx offsets)
+                            ; ok
+                            (let [offset-n    (mod idx col-n)
+                                  offset-x    (+ left-offset (* IMGSIZE offset-n))
+                                  offset-y    (offsets offset-n)
+                                  new-height  (.round js/Math (* (:height photo) (/ IMGSIZE (:width photo))))
+                                  new-offsets (update-in offsets [offset-n] #(+ % new-height))
+                                  new-item {:index idx
+                                            :title title
+                                            :photo photo
+                                            :x offset-x
+                                            :y offset-y}]
+                              (recur
+                                (rest is)
+                                (conj coll new-item)
+                                (inc idx)
+                                new-offsets)))
+                          ))))))))))
 
 (defn item-view [item owner]
-  (if
-    (= (:type item) "photo")
-    (reify
-      om/IRender
-      (render [_]
-        (dom/div #js {:data-type (:type item)
-                      :className (if (-> owner om/get-state :visible :photo)
-                                   "shown"
-                                   "hidden")}
-                 (dom/h2 nil (s/replace (:slug item)  #"-"  " "))
-                 (dom/a #js {:href (:post_url item) :target "_blank"}
-                        (dom/img #js {:src (-> item :photos first :alt_sizes second :url)})))))
-    (reify
-      om/IRender
-      (render [_]
-        (dom/div #js {:data-type true
-                      :className (if (-> owner om/get-state :visible :audio) 
-                                   "shown"
-                                   "hidden")}
-                 (dom/h2 nil (s/replace (:slug item)  #"-"  " "))
-                 (dom/div 
-                   #js {:dangerouslySetInnerHTML #js {:__html (:player item)}}
-                   nil)))) 
-    ))
+  (reify
+    om/IRender
+    (render [_]
+      (dom/a #js {:href (:post_url item) :target "_blank"
+                  :style #js {:position "absolute"
+                              :height (str (:height (:photo item)) "px")
+                              :width (str IMGSIZE "px")
+                              :top (str (:y item) "px")
+                              :left (str (:x item) "px")
+                              }}
+             (dom/img #js {:src (:url (:photo item))})))))
 
 
 ;; Loading ------------------------------------------------
@@ -197,22 +185,19 @@
   (om/component
     (dom/div nil
              ; title
-             (dom/h1 nil (str "Current search: " 
-                              (:current-search data)))
-             (dom/button
-               #js {:onClick (fn [e]
-                               (.preventDefault e)
-                               (om/transact! data reset-state))}
-               "Reset")
+             (dom/div #js {:className "header"}
+                      (dom/h1 nil (str "Current search: " 
+                                       (:current-search data)))
+                      (dom/button
+                        #js {:onClick (fn [e]
+                                        (.preventDefault e)
+                                        (om/transact! data reset-state))}
+                        "Reset")
+                      ; loading
+                      (dom/h2 nil "loading"))
              ; photo list
              (items-view data owner)
-             ; loading
-             (dom/h2 nil "loading")
-             (dom/button 
-               #js {:onClick (fn [e]
-                               (.preventDefault e)
-                               (om/transact! data reset-state ))}
-               "Cancel"))))
+             )))
 
 ;; loaded ------------------------------------------------
 
@@ -220,17 +205,16 @@
 (defn render-loaded [data owner]
   (om/component
     (dom/div nil
-             ; title
-             (dom/h1 nil (str "Current search: " 
-                              (:current-search data)))
+             (dom/div #js {:className "header"}
+                      ; title
+                      (dom/h1 nil (str "Current search: " 
+                                       (:current-search data)))
 
-             (render-select data owner)
-
-             (dom/button
-               #js {:onClick (fn [e]
-                               (.preventDefault e)
-                               (om/transact! data reset-state))}
-               "Reset")
+                      (dom/button
+                        #js {:onClick (fn [e]
+                                        (.preventDefault e)
+                                        (om/transact! data reset-state))}
+                        "Reset"))
              ; item list
              (items-view data owner)
              )))
@@ -308,6 +292,11 @@
         (om/transact! data #(assoc % :current-state :loading))
         (go (async-search @data ajax-chan))))))
 
+(defn async-window-resize [data]
+   (.addEventListener 
+     js/window "resize"
+     (fn []
+       (om/transact! data #(assoc % :window-width (.. js/window -innerWidth))))))
 
 (om/root
   (fn [data owner]
@@ -317,6 +306,7 @@
         (let [ajax-chan (chan 1)]
           (async-response-loop data ajax-chan)
           (async-window-scroll data ajax-chan)
+          (async-window-resize data)
           (om/set-state! owner :ajax-chan ajax-chan)))
       om/IRenderState 
       (render-state [this local-state]
