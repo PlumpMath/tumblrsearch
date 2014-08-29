@@ -17,6 +17,7 @@
                  [cljs-ajax "0.2.6"]
                  [com.facebook/react "0.11.1"]
                  [om "0.7.1"]
+                 [secretary "1.2.1-SNAPSHOT"]
                  ]
 
   :cljsbuild {:builds
