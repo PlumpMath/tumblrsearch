@@ -54,7 +54,9 @@
               ; 200 response - ok
               (put! ajax-chan {:error false
                                :search-term search-term
-                               :items (js->clj (.. % -response) :keywordize-keys true)})
+                               :items (filter 
+                                        #(= (:type %) "photo")
+                                        (js->clj (.. % -response) :keywordize-keys true))})
               ; otherwise error
               (put! ajax-chan {:error true})))))
 
@@ -99,7 +101,7 @@
     om/IRenderState
     (render-state [this state]
       (dom/div nil
-               (dom/h1 nil "Tumblr Search")
+               (dom/h1 nil "Tumblr img Search")
                ; input
                (dom/input
                  #js {:type "text" 
@@ -143,34 +145,36 @@
            (om/build-all 
              item-view 
              (->> (:current-items data)
-                  (filter #(= (:type %) "photo"))
-                  ((fn [items]
-                    (loop [is items coll [] idx 0 offsets (vec (repeat col-n 0))]
-                      (if (empty? is) coll
-                        (let [item  (first is)
-                              title (s/replace (:slug item)  #"-"  " ") 
-                              photo (-> item :photos first :alt_sizes second)]
-                          (if (or (nil? (:height photo)) (nil? (:width photo)))
-                            ; nil size found - drop the image
-                            (recur (rest is) coll idx offsets)
-                            ; ok
-                            (let [offset-n    (mod idx col-n)
-                                  offset-x    (+ left-offset (* IMGSIZE offset-n))
-                                  offset-y    (offsets offset-n)
-                                  new-height  (int (* (:height photo) (/ IMGSIZE (:width photo))))
-                                  new-offsets (update-in offsets [offset-n] #(+ % new-height))
-                                  new-item {:index idx
-                                            :title title
-                                            :photo photo
-                                            :post_url (:post_url item)
-                                            :x offset-x
-                                            :y offset-y
-                                            }]
-                              (recur
-                                (rest is)
-                                (conj coll new-item)
-                                (inc idx)
-                                new-offsets)))))))))))))
+                  #(loop [items   %
+                          coll    []
+                          idx     0
+                          offsets (zipmap (range col-n) (repeat 0))]
+                     (if (empty? items) coll
+                       (let [item  (first items)
+                             title (s/replace (:slug item)  #"-"  " ") 
+                             photo (-> item :photos first :alt_sizes second)]
+                         (if (or (nil? (:height photo)) (nil? (:width photo)))
+                           ; nil size found - drop the image
+                           (recur (rest items) coll idx offsets)
+                           ; ok
+                           (let [offset-n    (mod idx col-n)
+                                 offset      (apply min-key second offsets)
+                                 offset-x    (+ left-offset (* IMGSIZE (first offset)))
+                                 offset-y    (second offset)
+                                 new-height  (int (* (:height photo) (/ IMGSIZE (:width photo))))
+                                 new-offsets (update-in offsets [(first offset)] #(+ % new-height))
+                                 new-item {:index idx
+                                           :title title
+                                           :photo photo
+                                           :post_url (:post_url item)
+                                           :x offset-x
+                                           :y offset-y
+                                           }]
+                             (recur
+                               (rest itemss)
+                               (conj coll new-item)
+                               (inc idx)
+                               new-offsets)))))))))))
 
 
 ;; Loading ------------------------------------------------
@@ -274,10 +278,18 @@
       (when
         (and
           (= :loaded (:current-state @data))
-          (> 100
-            (- (.. js/document -body -offsetHeight)
-               (+ (.. js/window -innerHeight)
-                  (.. js/window -scrollY)))))
+          (let [body (.. js/document -body)
+                html  (.. js/document -documentElement)
+                height (max (.. body -scrollHeight)
+                            (.. body -offsetHeight)
+                            (.. html -clientHeight)
+                            (.. html -scrollHeight)
+                            (.. html -offsetHeight)
+                            )]
+            (> 100
+               (- height
+                  (+ (.. js/window -innerHeight)
+                     (.. js/window -scrollY))))))
         (om/transact! data #(assoc % :current-state :loading))
         (go (async-search @data ajax-chan))))))
 
