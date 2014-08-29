@@ -6,10 +6,15 @@
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [clojure.string :as s :refer [replace]]
-            ;[figwheel.client :as fw :include-macros true]
+            [figwheel.client :as fw :include-macros true]
+            ; routing
+            [secretary.core :as secretary :include-macros true :refer [defroute]]
+            [goog.events :as events]
             )
   (:import [goog.net Jsonp]
            [goog Uri]
+           goog.History
+           goog.History.EventType
            ))
 
 (enable-console-print!)
@@ -55,23 +60,21 @@
               (put! ajax-chan {:error false
                                :search-term search-term
                                :items (filter 
-                                        #(= (:type %) "photo")
+                                        (fn [item] (= (:type item) "photo"))
                                         (js->clj (.. % -response) :keywordize-keys true))})
               ; otherwise error
               (put! ajax-chan {:error true})))))
 
-(defn new-search [data state owner]
-  (when (not (empty? (:text state)))
-    (om/transact!
-      data #(assoc %
-                   :current-state :loading
-                   :current-search (:text state)
-                   :current-items []
-                   :before 0
-                   :window-width (.. js/window -innerWidth) 
-                   ))
-    (om/set-state! owner :text "")
-    (go (async-search @data (:ajax-chan state)))))
+(defn new-search [data query ajax-chan]
+  (om/transact!
+    data #(assoc %
+                 :current-state :loading
+                 :current-search query
+                 :current-items []
+                 :before 0
+                 :window-width (.. js/window -innerWidth) 
+                 ))
+  (go (async-search @data ajax-chan)))
 
 ; Key handling ---
 
@@ -88,7 +91,11 @@
   (let [k (key-event->keycode e)]
     (when (legal-key k) 
       (condp = k
-        ENTER (new-search data state owner)
+        ENTER (do 
+                (when (not (empty? (:text state)))
+                  (set! js/window.location.hash ((-> @data :routes :search) 
+                                                 {:query (:text state)}))
+                  (om/set-state! owner :text "")))
         ESC   (om/set-state! owner :text "")))))
 
 ; render ---
@@ -113,14 +120,17 @@
                (dom/button 
                  #js {:onClick (fn [e]
                                  (.preventDefault e)
-                                 (new-search data state owner))}
+                                 (when (not (empty? (:text state)))
+                                   (set! js/window.location.hash ((-> @data :routes :search) 
+                                                                  {:query (:text state)}))
+                                   (om/set-state! owner :text ""))
+                                 )}
                  "Search")
                ; clear button
                (dom/button
                  #js {:onClick (fn [e]
                                  (.preventDefault e)
                                  (om/set-state! owner :text "")
-                                 (om/transact! data reset-state)
                                  )}
                  "Clear")))))
 
@@ -141,40 +151,42 @@
 (defn items-view [data owner]
   (let [col-n (quot (:window-width data) IMGSIZE)
         left-offset (int (/ (mod (.. js/window -innerWidth) IMGSIZE) 2))]
+
     (apply dom/div #js {:className "images"}
+
            (om/build-all 
              item-view 
              (->> (:current-items data)
-                  #(loop [items   %
-                          coll    []
-                          idx     0
-                          offsets (zipmap (range col-n) (repeat 0))]
-                     (if (empty? items) coll
-                       (let [item  (first items)
-                             title (s/replace (:slug item)  #"-"  " ") 
-                             photo (-> item :photos first :alt_sizes second)]
-                         (if (or (nil? (:height photo)) (nil? (:width photo)))
-                           ; nil size found - drop the image
-                           (recur (rest items) coll idx offsets)
-                           ; ok
-                           (let [offset-n    (mod idx col-n)
-                                 offset      (apply min-key second offsets)
-                                 offset-x    (+ left-offset (* IMGSIZE (first offset)))
-                                 offset-y    (second offset)
-                                 new-height  (int (* (:height photo) (/ IMGSIZE (:width photo))))
-                                 new-offsets (update-in offsets [(first offset)] #(+ % new-height))
-                                 new-item {:index idx
-                                           :title title
-                                           :photo photo
-                                           :post_url (:post_url item)
-                                           :x offset-x
-                                           :y offset-y
-                                           }]
-                             (recur
-                               (rest itemss)
-                               (conj coll new-item)
-                               (inc idx)
-                               new-offsets)))))))))))
+                  (#(loop [items   %
+                           coll    []
+                           idx     0
+                           offsets (zipmap (range col-n) (repeat 0))]
+                      (if (empty? items) coll
+                        (let [item  (first items)
+                              title (s/replace (:slug item)  #"-"  " ") 
+                              photo (-> item :photos first :alt_sizes second)]
+                          (if (or (nil? (:height photo)) (nil? (:width photo)))
+                            ; nil size found - drop the image
+                            (recur (rest items) coll idx offsets)
+                            ; ok
+                            (let [offset-n    (mod idx col-n)
+                                  offset      (apply min-key second offsets)
+                                  offset-x    (+ left-offset (* IMGSIZE (first offset)))
+                                  offset-y    (second offset)
+                                  new-height  (int (* (:height photo) (/ IMGSIZE (:width photo))))
+                                  new-offsets (update-in offsets [(first offset)] + new-height)
+                                  new-item {:index idx
+                                            :title title
+                                            :photo photo
+                                            :post_url (:post_url item)
+                                            :x offset-x
+                                            :y offset-y
+                                            }]
+                              (recur
+                                (rest items)
+                                (conj coll new-item)
+                                (inc idx)
+                                new-offsets))))))))))))
 
 
 ;; Loading ------------------------------------------------
@@ -189,7 +201,8 @@
                       (dom/button
                         #js {:onClick (fn [e]
                                         (.preventDefault e)
-                                        (om/transact! data reset-state))}
+                                        (set! js/window.location.hash ((-> @data :routes :index)))
+                                        )}
                         "Reset")
                       ; loading
                       (dom/h2 nil "loading"))
@@ -210,7 +223,30 @@
                       (dom/button
                         #js {:onClick (fn [e]
                                         (.preventDefault e)
-                                        (om/transact! data reset-state))}
+                                        (set! js/window.location.hash "")
+                                        )}
+                        "Reset")
+                      ; loading
+                      (dom/h2 nil "loading"))
+             ; photo list
+             (items-view data owner))))
+
+;; loaded ------------------------------------------------
+
+
+(defn render-loaded [data owner]
+  (om/component
+    (dom/div nil
+             (dom/div #js {:className "header"}
+                      ; title
+                      (dom/h1 nil (str "Current search: " 
+                                       (:current-search data)))
+
+                      (dom/button
+                        #js {:onClick (fn [e]
+                                        (.preventDefault e)
+                                        (set! js/window.location.hash "")
+                                        )}
                         "Reset"))
              ; item list
              (items-view data owner))))
@@ -225,7 +261,7 @@
              (dom/button 
                #js {:onClick (fn [e]
                                (.preventDefault e)
-                               (om/transact! data reset-state ))}
+                               (set! js/window.location.hash ""))}
                "Cancel"))))
 
 ;; App -----------------------------------------------
@@ -239,65 +275,85 @@
           (cond
             ; loading error
             (:error response)
+            (om/transact! data
+                          #(assoc %
+                                  :before 0
+                                  :current-state :error
+                                  :error "AJAX error"
+                                  :current-search ""
+                                  :current-items []))
+
+            (and (= (:current-search @data) (:search-term response))
+                 (empty? (response :items)))
+            (if (empty? (:current-items @data))
+              ; nothing found error
               (om/transact! data
                             #(assoc %
                                     :before 0
                                     :current-state :error
-                                    :error "AJAX error"
+                                    :error "Tag not found"
                                     :current-search ""
-                                    :current-items []))
-
-            (and (= (:current-search @data) (:search-term response))
-                 (empty? (response :items)))
-              (if (empty? (:current-items @data))
-                ; nothing found error
-                (om/transact! data
-                              #(assoc %
-                                      :before 0
-                                      :current-state :error
-                                      :error "Tag not found"
-                                      :current-search ""
-                                      :current-items []
-                                      ))
-                ; loaded final
-                (om/transact! data #(assoc % :current-state :loaded-final)))
+                                    :current-items []
+                                    ))
+              ; loaded final
+              (om/transact! data #(assoc % :current-state :loaded-final)))
             ; not error, search term match, not empty - let's go!
             (and (= (:current-search @data) (:search-term response))
                  (not (empty? (response :items))))
-              (om/transact! data
-                            #(assoc %
-                                    :current-state :loaded
-                                    :current-items (concat (:current-items @data) 
-                                                           (:items response))
-                                    :before (:timestamp (last (response :items)))
-                                    ))))))))
+            (om/transact! data
+                          #(assoc %
+                                  :current-state :loaded
+                                  :current-items (concat (:current-items @data) 
+                                                         (:items response))
+                                  :before (:timestamp (last (response :items)))
+                                  ))))))))
 
 (defn async-window-scroll [data ajax-chan]
   (.addEventListener js/window "scroll" 
-    (fn []
-      (when
-        (and
-          (= :loaded (:current-state @data))
-          (let [body (.. js/document -body)
-                html  (.. js/document -documentElement)
-                height (max (.. body -scrollHeight)
-                            (.. body -offsetHeight)
-                            (.. html -clientHeight)
-                            (.. html -scrollHeight)
-                            (.. html -offsetHeight)
-                            )]
-            (> 100
-               (- height
-                  (+ (.. js/window -innerHeight)
-                     (.. js/window -scrollY))))))
-        (om/transact! data #(assoc % :current-state :loading))
-        (go (async-search @data ajax-chan))))))
+                     (fn []
+                       (when
+                         (and
+                           (= :loaded (:current-state @data))
+                           (let [body (.. js/document -body)
+                                 html  (.. js/document -documentElement)
+                                 height (max (.. body -scrollHeight)
+                                             (.. body -offsetHeight)
+                                             (.. html -clientHeight)
+                                             (.. html -scrollHeight)
+                                             (.. html -offsetHeight)
+                                             )]
+                             (> 100
+                                (- height
+                                   (+ (.. js/window -innerHeight)
+                                      (.. js/window -scrollY))))))
+                         (om/transact! data #(assoc % :current-state :loading))
+                         (go (async-search @data ajax-chan))))))
 
 (defn async-window-resize [data]
-   (.addEventListener 
-     js/window "resize"
-     (fn []
-       (om/transact! data #(assoc % :window-width (.. js/window -innerWidth))))))
+  (.addEventListener 
+    js/window "resize"
+    (fn []
+      (om/transact! data #(assoc % :window-width (.. js/window -innerWidth))))))
+
+
+(defn setup-navigation [data ajax-chan]
+
+  (secretary/set-config! :prefix "#")
+
+  (defroute search-route "/search/:query" [query]
+    (new-search data query ajax-chan))
+
+  (defroute index-route "/" []
+    (om/transact! data reset-state))
+
+  (om/transact! data #(assoc % :routes
+                             {:index index-route
+                              :search search-route}))
+
+  (let [h (History.)]
+    (goog.events/listen h EventType/NAVIGATE #(secretary/dispatch! (.-token %)))
+    (doto h
+      (.setEnabled true))))
 
 (om/root
   (fn [data owner]
@@ -305,10 +361,11 @@
       om/IWillMount
       (will-mount [_]
         (let [ajax-chan (chan 1)]
+          (om/set-state! owner :ajax-chan ajax-chan) 
           (async-response-loop data ajax-chan)
           (async-window-scroll data ajax-chan)
           (async-window-resize data)
-          (om/set-state! owner :ajax-chan ajax-chan)))
+          (setup-navigation data ajax-chan)))
       om/IRenderState 
       (render-state [this local-state]
         (dom/div nil
@@ -322,3 +379,12 @@
                    )))))
   (atom initial-state)
   {:target (. js/document (getElementById "app"))})
+
+
+;; Routing
+
+
+(fw/watch-and-reload
+  :websocket-url   "ws://localhost:3449/figwheel-ws"
+  :jsload-callback (fn [] (print "reloaded")))
+
