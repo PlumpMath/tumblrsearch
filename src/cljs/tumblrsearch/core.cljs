@@ -76,6 +76,13 @@
                  ))
   (go (async-search @data ajax-chan)))
 
+(defn maybe-search [data state owner]
+  (when (not (empty? (:text state)))
+    (print @data)
+    (set! js/window.location.hash
+          ((-> @data :routes :search) {:query (:text state)}))
+    (om/set-state! owner :text "")))
+
 ; Key handling ---
 
 (def ENTER 13)
@@ -91,11 +98,7 @@
   (let [k (key-event->keycode e)]
     (when (legal-key k) 
       (condp = k
-        ENTER (do 
-                (when (not (empty? (:text state)))
-                  (set! js/window.location.hash ((-> @data :routes :search) 
-                                                 {:query (:text state)}))
-                  (om/set-state! owner :text "")))
+        ENTER (maybe-search data state owner)
         ESC   (om/set-state! owner :text "")))))
 
 ; render ---
@@ -120,10 +123,7 @@
                (dom/button 
                  #js {:onClick (fn [e]
                                  (.preventDefault e)
-                                 (when (not (empty? (:text state)))
-                                   (set! js/window.location.hash ((-> @data :routes :search) 
-                                                                  {:query (:text state)}))
-                                   (om/set-state! owner :text ""))
+                                 (maybe-search data state owner)
                                  )}
                  "Search")
                ; clear button
@@ -201,7 +201,7 @@
                       (dom/button
                         #js {:onClick (fn [e]
                                         (.preventDefault e)
-                                        (set! js/window.location.hash ((-> @data :routes :index)))
+                                        (set! js/window.location.hash "")
                                         )}
                         "Reset")
                       ; loading
@@ -310,45 +310,48 @@
 
 (defn async-window-scroll [data ajax-chan]
   (.addEventListener js/window "scroll" 
-                     (fn []
-                       (when
-                         (and
-                           (= :loaded (:current-state @data))
-                           (let [body (.. js/document -body)
-                                 html  (.. js/document -documentElement)
-                                 height (max (.. body -scrollHeight)
-                                             (.. body -offsetHeight)
-                                             (.. html -clientHeight)
-                                             (.. html -scrollHeight)
-                                             (.. html -offsetHeight)
-                                             )]
-                             (> 100
-                                (- height
-                                   (+ (.. js/window -innerHeight)
-                                      (.. js/window -scrollY))))))
-                         (om/transact! data #(assoc % :current-state :loading))
-                         (go (async-search @data ajax-chan))))))
+  (fn []
+    (when
+      (and
+        (= :loaded (:current-state @data))
+        (let [body (.. js/document -body)
+              html  (.. js/document -documentElement)
+              height (max (.. body -scrollHeight)
+                          (.. body -offsetHeight)
+                          (.. html -clientHeight)
+                          (.. html -scrollHeight)
+                          (.. html -offsetHeight)
+                          )]
+          (> 100
+              (- height
+                (+ (.. js/window -innerHeight)
+                    (.. js/window -scrollY))))))
+      (om/transact! data #(assoc % :current-state :loading))
+      (go (async-search @data ajax-chan))))))
 
 (defn async-window-resize [data]
   (.addEventListener 
     js/window "resize"
     (fn []
-      (om/transact! data #(assoc % :window-width (.. js/window -innerWidth))))))
+      (om/transact! data 
+                    #(assoc % :window-width 
+                            (.. js/window -innerWidth))))))
 
 
 (defn setup-navigation [data ajax-chan]
-
   (secretary/set-config! :prefix "#")
 
-  (defroute search-route "/search/:query" [query]
-    (new-search data query ajax-chan))
+  (om/transact! 
+    data #(assoc % :routes
+                 {
+                  :index 
+                  (defroute "/" []
+                    (om/transact! data reset-state))
 
-  (defroute index-route "/" []
-    (om/transact! data reset-state))
-
-  (om/transact! data #(assoc % :routes
-                             {:index index-route
-                              :search search-route}))
+                  :search
+                  (defroute "/search/:query" [query]
+                    (new-search data query ajax-chan))
+                  }))
 
   (let [h (History.)]
     (goog.events/listen h EventType/NAVIGATE #(secretary/dispatch! (.-token %)))
@@ -361,17 +364,15 @@
       om/IWillMount
       (will-mount [_]
         (let [ajax-chan (chan 1)]
-          (om/set-state! owner :ajax-chan ajax-chan) 
           (async-response-loop data ajax-chan)
           (async-window-scroll data ajax-chan)
           (async-window-resize data)
-          (setup-navigation data ajax-chan)))
+          (setup-navigation    data ajax-chan)))
       om/IRenderState 
       (render-state [this local-state]
         (dom/div nil
                  (case (:current-state data)
-                   :search  (om/build render-search data
-                                      {:state {:ajax-chan (om/get-state owner :ajax-chan)}})
+                   :search  (om/build render-search data)
                    :loading (om/build render-loading data)
                    :loaded  (om/build render-loaded data)
                    :loaded-final (om/build render-loaded data)
