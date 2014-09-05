@@ -3,7 +3,7 @@
     [om.core :as om :include-macros true]
     [om-tools.core :refer-macros [defcomponent]]
     [om-tools.dom :as dom :include-macros true]
-    [tumblrsearch.search :as search]
+    [tumblrsearch.search :refer [new-search]]
     ))
 
 (def ENTER 13)
@@ -17,26 +17,25 @@
 (defn- handle-keydown [e data owner {:keys [query ajax-chan]}]
   (let [k (key-event->keycode e)]
     (case
-      (= ENTER k)
-      (when (not (empty? query)) 
-        (search/new-search data ajax-chan query))
+      (and 
+        (= ENTER k) (not (empty? query)))
+        (new-search data ajax-chan query)
       (= ESC k)
-      (om/set-state! owner :query ""))))
+        (om/set-state! owner :query ""))))
 
 (defcomponent header-component [data owner]
   (init-state [_] {:query ""})
   (render-state [_ {:keys [query ajax-chan] :as state}]
-                (dom/div 
-                  ; input
-                  (dom/input
-                    {:type "text" 
-                     :value query
-                     :onChange #(handle-change % owner)
-                     :onKeyDown #(handle-keydown % data owner state)})
-                  ; search button
-                  (dom/button 
-                    {:onClick (fn [e]
-                                (.preventDefault e)
-                                (search/new-search data ajax-chan query)
-                                )} "Search")
-                  )))
+    (dom/div 
+      ; input
+      (dom/input
+        {:type "text" 
+          :value query
+          :onChange #(handle-change % owner)
+          :onKeyDown #(handle-keydown % data owner state)})
+      ; search button
+      (dom/button 
+        {:onClick (fn [e]
+                    (.preventDefault e)
+                    (new-search data ajax-chan query)
+                    )} "Search"))))
