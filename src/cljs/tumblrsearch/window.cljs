@@ -1,7 +1,7 @@
 (ns tumblrsearch.window
   (:require
     [om.core :as om :include-macros true]
-    [tumblrsearch.search :refer [new-search]]
+    [tumblrsearch.search :refer [search]]
     ))
 
 ;; Window Scroll
@@ -19,13 +19,15 @@
     (- w-height (+ (.. js/window -innerHeight)
                    (.. js/window -scrollY)))))
 
-(defn- setup-scroll-handler [data ajax-chan]
+(defn- setup-scroll-handler [{:keys [current-state current-search before] :as data}
+                             ajax-chan]
   (.addEventListener js/window "scroll"
     (fn []
-      (when (and (= :loaded (:current-state @data))
+      (when (and (= :loaded current-state)
                  (> 100 (scroll-remain)))
         (om/transact! data #(assoc % :current-state :loading))
-        (new-search data ajax-chan query)))))
+          (search ajax-chan current-search before)
+       ))))
 
 ;; Window Resize
 ;; -----------------------------------------------------------------------------
@@ -40,4 +42,4 @@
 
 (defn init [data ajax-chan]
   (setup-scroll-handler data ajax-chan)
-  (setup-resuze-handler data))
+  (setup-resize-handler data))

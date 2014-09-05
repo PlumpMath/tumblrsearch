@@ -3,7 +3,8 @@
     [om.core :as om :include-macros true]
     [secretary.core :as secretary :include-macros true :refer [defroute]]
     [goog.events :as events]
-    [goog.history.EventType :as EventType])
+    [goog.history.EventType :as EventType]
+    [tumblrsearch.search :refer [search]])
   (:import
     goog.History))
 
@@ -20,9 +21,13 @@
       EventType/NAVIGATE #(secretary/dispatch! (.-token %)))
     (doto h
       (.setEnabled true))
-    (om/set-state owner :history h)))
+   ; (om/set-state! owner :history h)
+    
+    ))
 
 
 (defn init [data ajax-chan owner]
   (setup-routing data ajax-chan) 
-  (setup-history owner))
+  ;(setup-history owner)
+  
+  )

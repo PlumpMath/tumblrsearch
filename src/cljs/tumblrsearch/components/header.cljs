@@ -23,7 +23,7 @@
       (= ESC k)
         (om/set-state! owner :query ""))))
 
-(defcomponent header-component [data owner]
+(defcomponent component [data owner]
   (init-state [_] {:query ""})
   (render-state [_ {:keys [query ajax-chan] :as state}]
     (dom/div 

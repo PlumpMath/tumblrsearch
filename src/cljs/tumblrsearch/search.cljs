@@ -12,7 +12,7 @@
        "&before=" before
        "&api_key=pekKZHs4hKvshK1NRyXlawVhO203uYg0MMfGj5Tq8ts6M1Wq9Z"))
 
-(defn async-request [ajax-chan search-term before]
+(defn search [ajax-chan search-term before]
   (let [uri (gen-request search-term before)
         req (Jsonp. (Uri. uri))
         t   (timeout 500)
