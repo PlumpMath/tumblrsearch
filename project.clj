@@ -14,9 +14,9 @@
                  ; cljs
                  [org.clojure/clojurescript "0.0-2322"]
                  [enlive "1.1.5"]
-                 [cljs-ajax "0.2.6"]
-                 [com.facebook/react "0.11.1"]
                  [om "0.7.1"]
+                 [com.facebook/react "0.11.1"]
+                 [prismatic/om-tools "0.3.2"]
                  [secretary "1.2.1-SNAPSHOT"]
                  ]
 
