@@ -42,7 +42,7 @@
 ;; Response Handler
 ;; -----------------------------------------------------------------------------
 
-(defn ajax-handler [data ajax-chan]
+(defn init [data ajax-chan]
   (go-loop []
     (let [response (<! ajax-chan)]
       (when (and (= (:current-state @data) :loading)

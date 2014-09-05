@@ -19,7 +19,7 @@
     (- w-height (+ (.. js/window -innerHeight)
                    (.. js/window -scrollY)))))
 
-(defn setup-scroll-handler [data ajax-chan]
+(defn- setup-scroll-handler [data ajax-chan]
   (.addEventListener js/window "scroll"
     (fn []
       (when (and (= :loaded (:current-state @data))
@@ -30,9 +30,14 @@
 ;; Window Resize
 ;; -----------------------------------------------------------------------------
 
-(defn setup-resize-handler [data]
+(defn- setup-resize-handler [data]
   (.addEventListener 
     js/window "resize"
     (fn []
       (om/transact! data 
         #(assoc % :window-width (.. js/window -innerWidth))))))
+
+
+(defn init [data ajax-chan]
+  (setup-scroll-handler data ajax-chan)
+  (setup-resuze-handler data))
