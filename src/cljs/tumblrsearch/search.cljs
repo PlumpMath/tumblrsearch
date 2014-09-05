@@ -6,41 +6,44 @@
   (:import [goog.net Jsonp]
            [goog Uri]))
 
-(defn gen-request [search-term before]
+(defn gen-request [query before]
   (str "http://api.tumblr.com/v2/tagged"
-       "?tag=" search-term
+       "?tag=" query
        "&before=" before
        "&api_key=pekKZHs4hKvshK1NRyXlawVhO203uYg0MMfGj5Tq8ts6M1Wq9Z"))
 
-(defn search [ajax-chan search-term before]
-  (let [uri (gen-request search-term before)
+(defn search [ajax-chan query before]
+  (let [uri (gen-request query before)
         req (Jsonp. (Uri. uri))
-        t   (timeout 500)
+        t   (timeout 1000)
         ch  (chan)]
-    (.send req nil #(put! ch %))
-    (go (let [[v c] (alts! [t ch])]
+    (go (.send req nil #(put! ch %))
+        (let [[v c] (alts! [t ch])]
           (cond
-            ; timeout
+            ; Timeout
             (= c t)
-            (>! ajax-chan {:error :timeout})
-            ; Response !OK
+            (>! ajax-chan {:error :timeout
+                           :query query})
+            ; Response not OK.
             (not (= (.. v -meta -status) 200))
-            (>! ajax-chan {:error :ajax})
-            ; response OK
+            (>! ajax-chan {:error :ajax
+                           :query query})
+            ; Response OK
             :else
-            (let [items (-> (.. v -response)
-                            (js->clj :keywordize-keys true)
-                            (#(filter (fn [item] (= (:type item) "photo")))))]
+            (let [items (filter (fn [item] (= (:type item) "photo"))
+                                (js->clj (.. v -response) :keywordize-keys true))]
               (>! ajax-chan {:error false
-                             :search-term search-term
+                             :query query
                              :items items})))))))
 
 (defn new-search [data ajax-chan query]
   (om/transact! data 
-    #(assoc % :state :loading
+    #(assoc % :current-state :loading
               :before 0
+              :window-width (.. js/window -innerWidth)
               :current-search query
-              :current-items [])))
+              :current-items []))
+    (search ajax-chan query before))
 
 ;; Response Handler
 ;; -----------------------------------------------------------------------------
@@ -51,7 +54,7 @@
       (when 
         (and (= (:current-state @data) :loading)
              (= (:current-search @data) 
-                (:search-term response)))
+                (:query response)))
         (cond
           ; error
           (:error response)
@@ -64,7 +67,7 @@
             (om/transact! data
               #(assoc % :current-state :error
                         :error :empty-search))
-            (om/transact! data 
+            (om/transact! data
               #(assoc % :current-state :loaded-final)))
           :else
           (om/transact! data

@@ -19,14 +19,13 @@
     (- w-height (+ (.. js/window -innerHeight)
                    (.. js/window -scrollY)))))
 
-(defn- setup-scroll-handler [{:keys [current-state current-search before] :as data}
-                             ajax-chan]
+(defn- setup-scroll-handler [data ajax-chan]
   (.addEventListener js/window "scroll"
     (fn []
-      (when (and (= :loaded current-state)
+      (when (and (= :loaded (:current-state @data))
                  (> 100 (scroll-remain)))
         (om/transact! data #(assoc % :current-state :loading))
-          (search ajax-chan current-search before)
+          (search ajax-chan (:current-search @data) (:before @data))
        ))))
 
 ;; Window Resize

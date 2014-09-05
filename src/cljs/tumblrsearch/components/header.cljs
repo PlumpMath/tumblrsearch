@@ -16,8 +16,8 @@
 
 (defn- handle-keydown [e data owner {:keys [query ajax-chan]}]
   (let [k (key-event->keycode e)]
-    (case
-      (and 
+    (cond
+      (and
         (= ENTER k) (not (empty? query)))
         (new-search data ajax-chan query)
       (= ESC k)
@@ -26,7 +26,8 @@
 (defcomponent component [data owner]
   (init-state [_] {:query ""})
   (render-state [_ {:keys [query ajax-chan] :as state}]
-    (dom/div 
+    (dom/div {:class "header"}
+      (dom/h1 "Tumblr Image Search")
       ; input
       (dom/input
         {:type "text" 
@@ -38,4 +39,13 @@
         {:onClick (fn [e]
                     (.preventDefault e)
                     (new-search data ajax-chan query)
-                    )} "Search"))))
+                    )} "Search")
+      (when (= (:current-state data) :loading) (dom/h2 "Loading"))
+      (when (= (:current-state data) :error) 
+        (dom/h2 (condp = (:error data)
+                  :empty-search "No images found." 
+                  :timeout      "Search timeout" 
+                  :ajax         "Request error" 
+                  "Unknown Error.")))
+      
+      )))

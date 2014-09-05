@@ -57,14 +57,8 @@
                 (inc idx)
                 new-offsets))))))))
 
-(defcomponent items-view [{:keys [current-items window-width]} owner]
+(defcomponent component [{:keys [current-items window-width]} owner]
   (render [_]
-          (dom/div {:className "images"}
-                   (om/build-all item-view 
-                                 (build-offset-grid current-items 
-                                                    window-width)))))
-
-(defcomponent component [data owner]
-  (render [_]
-          (dom/div 
-            (om/build items-view data))))
+    (dom/div {:className "images"}
+      (om/build-all item-view 
+        (build-offset-grid current-items window-width)))))
