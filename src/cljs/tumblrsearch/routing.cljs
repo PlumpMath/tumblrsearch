@@ -1,4 +1,4 @@
-(ns tumblrsearch.history
+(ns tumblrsearch.routing
   (:require
     [om.core :as om :include-macros true]
     [secretary.core :as secretary :include-macros true :refer [defroute]]
