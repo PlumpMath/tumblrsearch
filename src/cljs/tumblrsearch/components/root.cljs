@@ -18,5 +18,5 @@
   (render-state [_ state]
     (dom/div
       (om/build header/component data {:init-state state})
-      (om/build main/component data {:init-state state})
+      (om/build main/component data)
       )))
