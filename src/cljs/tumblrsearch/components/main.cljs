@@ -1,5 +1,7 @@
-(ns tumblrsearch.main
+(ns tumblrsearch.components.main
   (:require
+    [clojure.string :as s]
+    [om.core :as om :include-macros true]
     [om-tools.core :refer-macros [defcomponent]]
     [om-tools.dom :as dom :include-macros true]
     [secretary.core :as secretary :include-macros true :refer [defroute]]
@@ -20,41 +22,43 @@
                               :left     (str (:x item) "px")}}
              (dom/img #js {:src (:url (:photo item))})))))
 
-(defn items-view [current-items owner]
-  (let [col-n (quot (:window-width data) *IMAGE-SIZE*)
-        left-offset (int (/ (mod (.. js/window -innerWidth) *IMAGE-SIZE*) 2))]
-    (apply dom/div #js {:className "images"}
-           (om/build-all 
-             item-view 
-             (->> current-items
-                  (#(loop [items   %
-                           coll    []
-                           idx     0
-                           offsets (zipmap (range col-n) (repeat 0))]
-                      (if (empty? items) coll
-                        (let [item  (first items)
-                              title (s/replace (:slug item)  #"-"  " ") 
-                              photo (-> item :photos first :alt_sizes second)]
-                          (if (or (nil? (:height photo)) (nil? (:width photo)))
-                            ; nil size found - drop the image
-                            (recur (rest items) coll idx offsets)
-                            ; image ok - place image in grid
-                            (let [offset-n    (mod idx col-n)
-                                  offset      (apply min-key second offsets)
-                                  offset-x    (+ left-offset (* *IMAGE-SIZE* (first offset)))
-                                  offset-y    (second offset)
-                                  new-height  (int (* (:height photo) (/ *IMAGE-SIZE* (:width photo))))
-                                  new-offsets (update-in offsets [(first offset)] + new-height)
-                                  new-item {:index idx
-                                            :title title
-                                            :photo photo
-                                            :post_url (:post_url item)
-                                            :x offset-x
-                                            :y offset-y
-                                            }]
-                              (recur
-                                (rest items)
-                                (conj coll new-item)
-                                (inc idx)
-                                new-offsets))))))))))))
+(defn- build-offset-grid [current-items window-width]
+  (let [col-n (quot window-width *IMAGE-SIZE*)
+        left-offset (-> (.. js/window -innerWidth)
+                        (mod *IMAGE-SIZE*) (/ 2) (int))]
+    (loop [items   current-items
+           coll    []
+           idx     0
+           offsets (zipmap (range col-n) (repeat 0))]
+      (if (empty? items) coll
+        (let [item  (first items)
+              title (s/replace (:slug item)  #"-"  " ") 
+              photo (-> item :photos first :alt_sizes second)]
+          (if (or (nil? (:height photo)) (nil? (:width photo)))
+            ; nil size found - drop the image
+            (recur (rest items) coll idx offsets)
+            ; image ok - place image in grid
+            (let [offset-n    (mod idx col-n)
+                  offset      (apply min-key second offsets)
+                  offset-x    (+ left-offset (* *IMAGE-SIZE* (first offset)))
+                  offset-y    (second offset)
+                  new-height  (int (* (:height photo) (/ *IMAGE-SIZE* (:width photo))))
+                  new-offsets (update-in offsets [(first offset)] + new-height)
+                  new-item {:index idx
+                            :title title
+                            :photo photo
+                            :post_url (:post_url item)
+                            :x offset-x
+                            :y offset-y
+                            }]
+              (recur
+                (rest items)
+                (conj coll new-item)
+                (inc idx)
+                new-offsets))))))))
 
+(defn items-view [{:keys [current-items window-width]} owner]
+  (apply dom/div #js {:className "images"}
+         (om/build-all item-view 
+                       (build-offset-grid current-items 
+                                          window-width))))

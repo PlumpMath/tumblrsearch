@@ -1,4 +1,4 @@
-(ns tumblrsearch.component.root
+(ns tumblrsearch.components.root
   (:require
     [om.core :as om :include-macros true]
     [om-tools.core :refer-macros [defcomponent]]
