@@ -1,9 +1,10 @@
 (ns tumblrsearch.main
-  [om-tools.core :refer-macros [defcomponent]]
-  [om-tools.dom :as dom :include-macros true]
-  [secretary.core :as secretary :include-macros true :refer [defroute]]
-  [goog.events :as events]
-  [goog.history.EventType :as EventType])
+  (:require
+    [om-tools.core :refer-macros [defcomponent]]
+    [om-tools.dom :as dom :include-macros true]
+    [secretary.core :as secretary :include-macros true :refer [defroute]]
+    [goog.events :as events]
+    [goog.history.EventType :as EventType]))
 
 (def *IMAGE-SIZE* 400)
 
