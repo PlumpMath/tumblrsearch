@@ -17,31 +17,27 @@
         ch  (chan)]
     (.send req nil #(put! ch %))
     (go (let [[v c] (alts! [t ch])]
-          (case 
+          (case
             ; timeout
-            (= c t) 
+            (= c t)
             (>! ajax-chan {:error :timeout})
-
-            ; Response error
+            ; Response !OK
             (not (= (.. v -meta -status) 200))
             (>! ajax-chan {:error :ajax})
-
             ; response OK
-            (>! ajax-chan {:error false
-                           :search-term search-term
-                           :items (-> v
-                                      (.. -response)
-                                      (js->clj :keywordize-keys true)
-                                      (#(filter #(= (:type %) "photo"))))
-                           }))))))
+            (let [items (-> (.. v -response)
+                            (js->clj :keywordize-keys true)
+                            (#(filter #(= (:type %) "photo"))))]
+              (>! ajax-chan {:error false
+                             :search-term search-term
+                             :items items})))))))
 
 (defn new-search [data ajax-chan query]
   (om/transact! data 
-    #(assoc %
-            :state :loading
-            :before 0
-            :current-search query
-            :current-items [])))
+    #(assoc % :state :loading
+              :before 0
+              :current-search query
+              :current-items [])))
 
 ;; Response Handler
 ;; -----------------------------------------------------------------------------
@@ -53,11 +49,12 @@
                  (= (:current-search @data) 
                     (:search-term response)))
       (cond
+        ; error
         (:error response)
         (om/transact! data
           #(assoc % :current-state :error
                     :error (:error response)))
-
+        ; empty response
         (empty? (:items response))
         (if (empty? (:current-items @data))
           (om/transact! data
@@ -65,7 +62,6 @@
                       :error :empty-search))
           (om/transact! data 
             #(assoc % :current-state :loaded-final)))
-
         :else
         (om/transact! data
           #(assoc % :current-state :loaded
