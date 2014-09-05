@@ -8,7 +8,8 @@
     [tumblrsearch.components.header :as header]
     [tumblrsearch.components.main :as main]
     [tumblrsearch.window :as window]
-    [tumblrsearch.search :as search]))
+    [tumblrsearch.search :as search]
+    [tumblrsearch.routing :as routing]))
 
 
 ;; Root Component
@@ -19,6 +20,7 @@
     (let [ajax-chan (chan)]
       (window/init data ajax-chan)
       (search/init data ajax-chan)
+      (routing/init data ajax-chan owner)
       (om/set-state! owner :ajax-chan ajax-chan)
       ))
   (render-state [_ state]
