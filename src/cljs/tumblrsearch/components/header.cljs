@@ -30,8 +30,8 @@
 
 (defcomponent component [data owner]
   (init-state [_] {:query ""})
-  (will-mount [_ ]
-    (om/set-state! owner :query (:current-search data)))
+  (will-receive-props [_ next-props]
+    (om/set-state! owner :query (:current-search next-props)))
   (render-state [_ {:keys [query ajax-chan] :as state}]
     (dom/div {:class "header"}
       (dom/h1 "Tumblr Image Search")
