@@ -1,0 +1,32 @@
+body {
+  margin: 0;
+  text-align: center;
+  font-family: sans-serif;
+}
+img {
+  width: 100%;
+}
+a {
+  display: block;
+  -webkit-transition: all linear 0.2s;
+}
+.shown {
+  display: block;
+}
+.hidden {
+  display: none;
+}
+.header {
+  width: 100%;
+  background: rgba(255,255,255,0.65);
+  position: fixed;
+  padding-bottom: 20px;
+  top: 0;
+  z-index: 999;
+}
+.images {
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 150px;
+  position: relative;
+}
