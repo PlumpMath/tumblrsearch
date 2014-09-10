@@ -33,7 +33,7 @@
 ;; Window Resize
 ;; -----------------------------------------------------------------------------
 
-(defn- setup-resize-handler [data image-size]
+(defn- setup-resize-handler [data image-width]
   (let [c (chan)]
     (go
       (loop [col-n (<! c)]
@@ -52,9 +52,9 @@
     (.addEventListener 
       js/window "resize"
       (fn []
-        (let [col-n (quot (.. js/window -innerWidth) image-size)]
+        (let [col-n (quot (.. js/window -innerWidth) image-width)]
           (put! c col-n))))))
 
 (defn init [data owner ajax-chan]
   (setup-scroll-handler data ajax-chan)
-  (setup-resize-handler data (om/get-shared owner :image-size)))
+  (setup-resize-handler data (om/get-shared owner :image-width)))

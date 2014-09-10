@@ -8,8 +8,6 @@
     [goog.events :as events]
     [goog.history.EventType :as EventType]))
 
-(def *IMAGE-SIZE* 400)
-
 (defn item-view [item owner]
   (reify
     om/IRender
@@ -17,12 +15,13 @@
       (dom/a #js {:href (:post_url item) :target "_blank"
                   :style #js {:position "absolute"
                               :height   (str (:height (:photo item)) "px")
-                              :width    (str *IMAGE-SIZE* "px")
+                              :width    (str (om/get-shared owner :image-width) "px")
                               :top      (str (:y item) "px")
                               :left     (str (:x item) "px")}}
              (dom/img #js {:src (:url (:photo item))})))))
 
-(defn- build-offset-grid [current-items col-n]
+
+(defn- build-offset-grid [current-items col-n image-width]
   (loop [items   current-items
          coll    []
          idx     0
@@ -37,9 +36,9 @@
           ; image ok - place image in grid
           (let [offset-n    (mod idx col-n)
                 offset      (apply min-key second offsets)
-                offset-x    (* *IMAGE-SIZE* (first offset))
+                offset-x    (* image-width (first offset))
                 offset-y    (second offset)
-                new-height  (int (* (:height photo) (/ *IMAGE-SIZE* (:width photo))))
+                new-height  (int (* (:height photo) (/ image-width (:width photo))))
                 new-offsets (update-in offsets [(first offset)] + new-height)
                 new-item {:index idx
                           :title title
@@ -57,6 +56,6 @@
 (defcomponent component [{:keys [current-items col-n]} owner]
   (render [_]
     (dom/div {:className "images"
-              :style {:width (str (* col-n *IMAGE-SIZE*) "px")}}
+              :style {:width (str (* col-n (om/get-shared owner :image-width)) "px")}}
       (om/build-all item-view
-        (build-offset-grid current-items col-n)))))
+        (build-offset-grid current-items col-n (om/get-shared owner :image-width))))))
