@@ -54,10 +54,9 @@
               (inc idx)
               new-offsets)))))))
 
-(defcomponent component [{:keys [current-items window-width]} owner]
+(defcomponent component [{:keys [current-items col-n]} owner]
   (render [_]
-    (let [col-n (quot window-width *IMAGE-SIZE*)]
-     (dom/div {:className "images"
-               :style {:width (str (* col-n *IMAGE-SIZE*) "px")}}
-        (om/build-all item-view
-          (build-offset-grid current-items col-n))))))
+    (dom/div {:className "images"
+              :style {:width (str (* col-n *IMAGE-SIZE*) "px")}}
+      (om/build-all item-view
+        (build-offset-grid current-items col-n)))))

@@ -18,13 +18,12 @@
 (defcomponent root-component [data owner]
   (will-mount [_]
     (let [ajax-chan (chan)]
-      (window/init data ajax-chan)
+      (window/init data owner ajax-chan)
       (search/init data ajax-chan)
       (routing/init data ajax-chan owner)
       (om/set-state! owner :ajax-chan ajax-chan)
       ))
   (render-state [_ state]
-    (print (:current-state data))
     (dom/div
       (om/build header/component data {:init-state state})
       (om/build main/component data))))

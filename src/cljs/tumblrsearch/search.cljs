@@ -40,7 +40,6 @@
   (om/transact! data 
     #(assoc % :current-state :loading
               :before 0
-              :window-width (.. js/window -innerWidth)
               :current-search query
               :current-items []))
     (search ajax-chan query before))
