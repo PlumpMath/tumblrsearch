@@ -42,7 +42,7 @@
               :before 0
               :current-search query
               :current-items []))
-    (search ajax-chan query before))
+    (search ajax-chan query 0))
 
 ;; Response Handler
 ;; -----------------------------------------------------------------------------
