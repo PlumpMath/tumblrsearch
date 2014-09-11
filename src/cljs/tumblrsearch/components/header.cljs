@@ -46,7 +46,7 @@
         {:onClick (fn [e]
                     (.preventDefault e)
                     (.setToken (om/get-state owner :history) 
-                               (str "search/" query))
+                               (str "/search/" query))
                     (new-search data ajax-chan query)
                     )} "Search")
       (when (= (:current-state data) :loading) (dom/h2 "Loading"))
