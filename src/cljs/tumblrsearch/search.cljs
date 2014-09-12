@@ -48,8 +48,7 @@
 ;; -----------------------------------------------------------------------------
 
 (defn init [data ajax-chan]
-  (go (loop []
-      (let [response (<! ajax-chan)]
+  (go (loop [response (<! ajax-chan)]
       (when 
         (and (= (:current-state @data) :loading)
              (= (:current-search @data) 
@@ -68,10 +67,10 @@
                         :error :empty-search))
             (om/transact! data
               #(assoc % :current-state :loaded-final)))
-          :else
+          :else ; response ok.
           (om/transact! data
             #(assoc % :current-state :loaded
                       :current-items (concat (:current-items @data) 
                                             (:items response))
                       :before (:timestamp (last (response :items)))))))
-      (recur)))))
+      (recur (<! ajax-chan)))))
